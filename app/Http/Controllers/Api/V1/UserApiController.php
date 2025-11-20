@@ -36,10 +36,23 @@ class UserApiController extends Controller {
     }
 
     public function update(Request $request) {
+        $me = $request->user();
+        
         try {
+            
             $id = filter_var($request->route('id'), FILTER_VALIDATE_INT);
             $user = $this->repo->get($id);
+            $admin = $user->admin;
             $user->fill($request->all());
+            //first: user not change other user, second: no one changeing thier own admin status, third: user not changing other users admin status
+            if (($me->id !== $id && !$me->admin) || ($user->admin != $admin && $me->id == $id) || ($user->admin != $admin && !$me->admin)) {
+                return response()->json(['error' => 'forbidden'], 403);
+            //check that id not changed
+            } else if ($user->id !== $id) {
+                return response()->json(['error' => 'forbidden. You cannot change id'], 403);
+            }
+
+            
             $this->repo->update($user);
             return response()->json(['user' => $user]);
         } catch (\Exception $e) {
@@ -48,8 +61,17 @@ class UserApiController extends Controller {
     }
 
     public function remove(Request $request) {
+        $me = $request->user();
+        //not users deleting other users
+        if (!$me->admin) {
+            return response()->json(['error' => "unautorized, not admin"], 401);
+        }
         try {
             $id = filter_var($request->input('id'), FILTER_VALIDATE_INT);
+            //not admin delete themselves
+            if ($me->id === $id) {
+                return response()->json(['error' => 'forbidden, admin can not remove themselves'], 403);
+            }
             $this->repo->delete($id);
             return response()->json(null, 204);
         } catch (\Exception $e) {
