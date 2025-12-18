@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -44,15 +43,18 @@ class UserApiController extends Controller {
             $user = $this->repo->get($id);
             $admin = $user->admin;
             $user->fill($request->all());
-            //first: user not change other user, second: no one changeing thier own admin status, third: user not changing other users admin status
-            if (($me->id !== $id && !$me->admin) || ($user->admin != $admin && $me->id == $id) || ($user->admin != $admin && !$me->admin)) {
+           
+            if (
+              ($me->id !== $id && !$me->admin) || //editing user is not the same user that is being edited AND the editor is not admin
+              ($user->admin != $admin && $me->id == $id) || //If the admin stage have changed AND the user is editing themselves
+              ($user->admin != $admin && !$me->admin) //Admin status of a user is changed AND the editor is not admin
+            ) {
                 return response()->json(['error' => 'forbidden'], 403);
-            //check that id not changed
+                //check that id not changed
             } else if ($user->id !== $id) {
                 return response()->json(['error' => 'forbidden. You cannot change id'], 403);
             }
 
-            
             $this->repo->update($user);
             return response()->json(['user' => $user]);
         } catch (\Exception $e) {
@@ -62,13 +64,13 @@ class UserApiController extends Controller {
 
     public function remove(Request $request) {
         $me = $request->user();
-        //not users deleting other users
+        //admin required to delete a user
         if (!$me->admin) {
             return response()->json(['error' => "unautorized, not admin"], 401);
         }
         try {
             $id = filter_var($request->input('id'), FILTER_VALIDATE_INT);
-            //not admin delete themselves
+            //only admin can get in here( stop admin from deleting themselves)
             if ($me->id === $id) {
                 return response()->json(['error' => 'forbidden, admin can not remove themselves'], 403);
             }
